@@ -1,0 +1,41 @@
+name = "doceria-cardapio-digital"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Com pages_build_output_dir definido, "wrangler pages dev" já serve essa
+# pasta automaticamente (com os bindings D1/R2 abaixo) — não passe um
+# diretório na linha de comando nem um comando de proxy via "-- <cmd>"
+# junto com "wrangler pages dev", pois o Wrangler rejeita as duas coisas
+# ao mesmo tempo ("Specify either a directory OR a proxy command, not both").
+# Fluxo local: `npm run build` e depois `wrangler pages dev` (ou apenas
+# `npm run pages:dev`, que já faz as duas coisas).
+pages_build_output_dir = "dist"
+
+# ---------------------------------------------------------------------------
+# Cloudflare D1 (banco de dados). Depois de rodar `npm run db:create`, copie o
+# "database_id" retornado e cole abaixo.
+# ---------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "doceria-db"
+database_id = "COLE_AQUI_O_DATABASE_ID_RETORNADO_PELO_WRANGLER"
+
+# ---------------------------------------------------------------------------
+# Cloudflare R2 (armazenamento de imagens dos produtos/loja).
+# Crie o bucket com: wrangler r2 bucket create doceria-imagens
+# ---------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "doceria-imagens"
+
+# ---------------------------------------------------------------------------
+# Variáveis públicas (não sensíveis). Segredos (JWT_SECRET, ADMIN_SETUP_KEY)
+# NÃO devem ficar aqui em produção — use:
+#   wrangler pages secret put JWT_SECRET
+#   wrangler pages secret put ADMIN_SETUP_KEY
+# Para desenvolvimento local, defina-os em um arquivo ".dev.vars" (veja
+# .dev.vars.example) que o wrangler carrega automaticamente e nunca deve
+# ser commitado.
+# ---------------------------------------------------------------------------
+[vars]
+APP_ENV = "production"
