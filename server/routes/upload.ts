@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import type { HonoEnv } from "../types";
 import { requireAdmin } from "../middleware/auth";
+import { getStorage, getBucketName } from "../lib/storage";
 
 export const uploadRoutes = new Hono<HonoEnv>();
 
@@ -19,8 +21,8 @@ function extFromType(type: string): string {
 }
 
 // POST /api/admin/upload — multipart/form-data com campo "file".
-// Salva a imagem no bucket R2 e devolve a URL pública servida por
-// GET /api/images/:key (ver routes/images.ts).
+// Salva a imagem no bucket R2 (via endpoint S3) e devolve a URL pública
+// servida por GET /api/images/:key (ver routes/images.ts).
 uploadRoutes.post("/", requireAdmin, async (c) => {
   const body = await c.req.parseBody();
   const file = body["file"];
@@ -38,9 +40,14 @@ uploadRoutes.post("/", requireAdmin, async (c) => {
   const folder = (c.req.query("folder") || "products").replace(/[^a-z0-9-]/gi, "");
   const key = `${folder}/${crypto.randomUUID()}.${extFromType(file.type)}`;
 
-  await c.env.IMAGES.put(key, await file.arrayBuffer(), {
-    httpMetadata: { contentType: file.type },
-  });
+  await getStorage().send(
+    new PutObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+      Body: Buffer.from(await file.arrayBuffer()),
+      ContentType: file.type,
+    })
+  );
 
   return c.json({ url: `/api/images/${key}`, key }, 201);
 });

@@ -14,8 +14,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Durante "npm run dev" o front roda no Vite; para testar as Functions
-      // use "npm run pages:dev" (wrangler pages dev) que builda e serve tudo junto.
-      "/api": "http://127.0.0.1:8788",
+      // use "npm run vercel:dev" (vercel dev, porta padrão 3000) em paralelo.
+      "/api": "http://127.0.0.1:3000",
     },
   },
   build: {

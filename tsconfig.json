@@ -5,7 +5,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
-    "types": ["vite/client", "@cloudflare/workers-types"],
+    "types": ["vite/client", "node"],
 
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
@@ -25,5 +25,5 @@
       "@server/*": ["server/*"]
     }
   },
-  "include": ["src", "server", "functions"]
+  "include": ["src", "server", "api"]
 }

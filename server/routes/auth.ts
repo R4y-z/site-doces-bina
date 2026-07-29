@@ -1,16 +1,18 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import type { HonoEnv } from "../types";
+import { getDb } from "../lib/db";
+import { getEnv, isProduction } from "../lib/env";
 import { hashPassword, verifyPassword } from "../lib/password";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "../lib/jwt";
 import { requireAdmin } from "../middleware/auth";
 
 export const authRoutes = new Hono<HonoEnv>();
 
-function cookieOptions(env: HonoEnv["Bindings"]) {
+function cookieOptions() {
   return {
     httpOnly: true,
-    secure: env.APP_ENV !== "development",
+    secure: isProduction(),
     sameSite: "Lax" as const,
     path: "/",
     maxAge: SESSION_MAX_AGE,
@@ -24,22 +26,25 @@ authRoutes.post("/setup", async (c) => {
   if (!body?.username || !body?.password || !body?.setupKey) {
     return c.json({ error: "username, password e setupKey são obrigatórios." }, 400);
   }
-  if (body.setupKey !== c.env.ADMIN_SETUP_KEY) {
+  if (body.setupKey !== getEnv().ADMIN_SETUP_KEY) {
     return c.json({ error: "setupKey inválida." }, 403);
   }
   if (String(body.password).length < 8) {
     return c.json({ error: "A senha deve ter pelo menos 8 caracteres." }, 400);
   }
 
-  const existing = await c.env.DB.prepare("SELECT COUNT(*) as count FROM admin_users").first<{ count: number }>();
-  if (existing && existing.count > 0) {
+  const db = getDb();
+  const existing = await db.execute("SELECT COUNT(*) as count FROM admin_users");
+  const count = existing.rows[0]?.count as number;
+  if (count > 0) {
     return c.json({ error: "Já existe um administrador cadastrado." }, 409);
   }
 
   const passwordHash = await hashPassword(body.password);
-  await c.env.DB.prepare("INSERT INTO admin_users (username, password_hash) VALUES (?, ?)")
-    .bind(body.username, passwordHash)
-    .run();
+  await db.execute({
+    sql: "INSERT INTO admin_users (username, password_hash) VALUES (?, ?)",
+    args: [body.username, passwordHash],
+  });
 
   return c.json({ ok: true });
 });
@@ -50,16 +55,21 @@ authRoutes.post("/login", async (c) => {
     return c.json({ error: "username e password são obrigatórios." }, 400);
   }
 
-  const user = await c.env.DB.prepare("SELECT * FROM admin_users WHERE username = ?")
-    .bind(body.username)
-    .first<{ id: number; username: string; password_hash: string }>();
+  const db = getDb();
+  const result = await db.execute({
+    sql: "SELECT * FROM admin_users WHERE username = ?",
+    args: [body.username],
+  });
+  const user = result.rows[0] as unknown as
+    | { id: number; username: string; password_hash: string }
+    | undefined;
 
   if (!user || !(await verifyPassword(body.password, user.password_hash))) {
     return c.json({ error: "Usuário ou senha inválidos." }, 401);
   }
 
-  const token = await signSession({ sub: String(user.id), username: user.username }, c.env.JWT_SECRET);
-  setCookie(c, SESSION_COOKIE, token, cookieOptions(c.env));
+  const token = await signSession({ sub: String(user.id), username: user.username }, getEnv().JWT_SECRET);
+  setCookie(c, SESSION_COOKIE, token, cookieOptions());
 
   return c.json({ ok: true, admin: { id: user.id, username: user.username } });
 });

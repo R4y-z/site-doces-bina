@@ -128,7 +128,13 @@ cadastrado). Depois disso, acesse `http://127.0.0.1:8788/admin/login`.
 
 ## Passo a passo — deploy em produção (Cloudflare)
 
-### 1. Login no Wrangler
+Existem **duas formas** de publicar. Escolha uma — não misture as duas, isso
+é justamente o que causa o erro `Authentication error [code: 10000]` (ver
+aviso na Opção A).
+
+Os passos de banco de dados e R2 são iguais nas duas opções:
+
+### 1. Login no Wrangler (só necessário na sua máquina, para os comandos abaixo)
 
 ```bash
 npx wrangler login
@@ -168,17 +174,46 @@ bucket. Isso permite servir as imagens direto do R2, sem passar pelo Worker —
 mais rápido e mais barato. A rota `GET /api/images/:key` já incluída no
 projeto funciona sem essa configuração, então isso é apenas uma otimização.)
 
-### 5. Criar o projeto Pages e configurar os segredos
+---
+
+### Opção A — Git integration pelo Dashboard (recomendado)
+
+Você conecta o repositório (GitHub/GitLab) direto no Cloudflare, e todo push
+gera um deploy automático. **O Cloudflare já publica o resultado do build
+sozinho — o Wrangler não entra em ação nesse fluxo.**
+
+1. **Workers & Pages → Create → Pages → Connect to Git**, selecione o
+   repositório.
+2. Em **Build settings**:
+   - **Build command:** `npm run pages:build` (equivale a `npm run build` —
+     **nunca** coloque `wrangler pages deploy` aqui)
+   - **Build output directory:** `dist`
+3. Em **Settings → Functions → D1 database bindings**, adicione o binding
+   `DB` apontando pro banco `doceria-db` criado no passo 2 acima. Em
+   **R2 bucket bindings**, adicione `IMAGES` apontando pro bucket
+   `doceria-imagens`.
+4. Em **Settings → Environment variables**, adicione `JWT_SECRET` e
+   `ADMIN_SETUP_KEY` como variáveis **Secret** (não como texto puro).
+5. Salve e dispare um novo deploy (push no repositório, ou "Retry deployment").
+
+> ⚠️ **Por que o erro `Authentication error [code: 10000]` acontece:** se o
+> "Build command" chamar `wrangler pages deploy` (ex: `npm run pages:deploy`),
+> o Wrangler tenta se autenticar de novo *dentro* do ambiente de build do
+> Cloudflare usando uma variável `CLOUDFLARE_API_TOKEN` que esse ambiente
+> injeta para uso interno — e esse token não tem permissão de
+> "Pages: Edit", então a chamada à API falha com esse erro. A correção é
+> simplesmente **não rodar `wrangler pages deploy` no build command**; o
+> deploy já acontece automaticamente depois que o build termina.
+
+### Opção B — Deploy manual via CLI (sem Git integration)
+
+Use esta opção se preferir publicar direto do seu terminal, sem conectar o
+repositório ao Cloudflare.
 
 ```bash
 npx wrangler pages project create doceria-cardapio-digital
 npx wrangler pages secret put JWT_SECRET
 npx wrangler pages secret put ADMIN_SETUP_KEY
-```
-
-### 6. Build e deploy
-
-```bash
 npm run pages:deploy
 ```
 
@@ -186,9 +221,12 @@ O Wrangler vai publicar o conteúdo de `dist/` (front-end) junto com as
 Functions em `functions/api/`, já conectadas aos bindings `DB` e `IMAGES`
 declarados em `wrangler.toml`.
 
-### 7. Criar o admin em produção
+---
 
-Mesmo comando do passo local, trocando a URL:
+### Criar o admin em produção
+
+Depois do primeiro deploy (por qualquer uma das duas opções), crie o admin
+chamando o endpoint de setup, trocando a URL:
 
 ```bash
 curl -X POST https://SEU-PROJETO.pages.dev/api/auth/setup \
@@ -197,10 +235,11 @@ curl -X POST https://SEU-PROJETO.pages.dev/api/auth/setup \
 ```
 
 Depois disso, você pode (opcionalmente) trocar/remover o `ADMIN_SETUP_KEY`
-com `npx wrangler pages secret put ADMIN_SETUP_KEY` novamente, já que o
-endpoint de setup só é utilizável enquanto não existir nenhum admin.
+(via `npx wrangler pages secret put ADMIN_SETUP_KEY` ou pelo Dashboard em
+Settings → Environment variables), já que o endpoint de setup só é
+utilizável enquanto não existir nenhum admin.
 
-### 8. Domínio próprio (opcional)
+### Domínio próprio (opcional)
 
 Em **Cloudflare Dashboard → Pages → seu projeto → Custom domains**, adicione
 seu domínio (ex: `cardapio.suadoceria.com.br`).
@@ -214,7 +253,8 @@ seu domínio (ex: `cardapio.suadoceria.com.br`).
 | `npm run dev`              | Vite dev server (hot-reload do front-end)                        |
 | `npm run build`             | Typecheck + build de produção do front-end (`dist/`)             |
 | `npm run pages:dev`          | Build + `wrangler pages dev` (front-end + API + D1/R2 simulados) |
-| `npm run pages:deploy`        | Build + deploy para o Cloudflare Pages                           |
+| `npm run pages:build`         | Só builda (`= npm run build`) — use este como "Build command" no Git integration |
+| `npm run pages:deploy`        | Build + deploy via CLI — **só para a Opção B** (sem Git integration) |
 | `npm run db:create`           | Cria o banco D1 remoto                                            |
 | `npm run db:migrate:local`     | Aplica `schema.sql` no D1 local                                   |
 | `npm run db:migrate:remote`    | Aplica `schema.sql` no D1 remoto (produção)                       |

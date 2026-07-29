@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HonoEnv } from "../types";
 import { requireAdmin } from "../middleware/auth";
+import { getDb } from "../lib/db";
 
 export const settingsRoutes = new Hono<HonoEnv>();
 
@@ -9,7 +10,9 @@ settingsRoutes.use("*", requireAdmin);
 // Retorna todas as configurações (inclusive dados sensíveis como chave PIX)
 // para edição no painel admin.
 settingsRoutes.get("/", async (c) => {
-  const row = await c.env.DB.prepare("SELECT * FROM store_settings WHERE id = 1").first<any>();
+  const db = getDb();
+  const result = await db.execute("SELECT * FROM store_settings WHERE id = 1");
+  const row = result.rows[0] as any;
   if (!row) return c.json({ error: "Configurações não encontradas." }, 404);
 
   return c.json({
@@ -35,7 +38,9 @@ settingsRoutes.put("/", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body) return c.json({ error: "Payload inválido." }, 400);
 
-  const existing = await c.env.DB.prepare("SELECT * FROM store_settings WHERE id = 1").first<any>();
+  const db = getDb();
+  const existingResult = await db.execute("SELECT * FROM store_settings WHERE id = 1");
+  const existing = existingResult.rows[0] as any;
   if (!existing) return c.json({ error: "Configurações não encontradas." }, 404);
 
   const merged = {
@@ -54,12 +59,11 @@ settingsRoutes.put("/", async (c) => {
     pix_qr_url: body.pixQrUrl !== undefined ? body.pixQrUrl : existing.pix_qr_url,
   };
 
-  await c.env.DB.prepare(
-    `UPDATE store_settings SET store_name = ?, tagline = ?, logo_url = ?, banner_url = ?, is_open = ?, address = ?,
+  await db.execute({
+    sql: `UPDATE store_settings SET store_name = ?, tagline = ?, logo_url = ?, banner_url = ?, is_open = ?, address = ?,
        hours_text = ?, whatsapp_number = ?, delivery_fee_cents = ?, min_order_cents = ?, pix_key = ?, pix_key_type = ?,
-       pix_qr_url = ?, updated_at = datetime('now') WHERE id = 1`
-  )
-    .bind(
+       pix_qr_url = ?, updated_at = datetime('now') WHERE id = 1`,
+    args: [
       merged.store_name,
       merged.tagline,
       merged.logo_url,
@@ -72,19 +76,22 @@ settingsRoutes.put("/", async (c) => {
       merged.min_order_cents,
       merged.pix_key,
       merged.pix_key_type,
-      merged.pix_qr_url
-    )
-    .run();
+      merged.pix_qr_url,
+    ],
+  });
 
   return c.json({ ok: true });
 });
 
 // Atalho para abrir/fechar a loja rapidamente pelo dashboard.
 settingsRoutes.post("/toggle-open", async (c) => {
-  const row = await c.env.DB.prepare("SELECT is_open FROM store_settings WHERE id = 1").first<{ is_open: number }>();
+  const db = getDb();
+  const result = await db.execute("SELECT is_open FROM store_settings WHERE id = 1");
+  const row = result.rows[0] as unknown as { is_open: number } | undefined;
   const next = row?.is_open ? 0 : 1;
-  await c.env.DB.prepare("UPDATE store_settings SET is_open = ?, updated_at = datetime('now') WHERE id = 1")
-    .bind(next)
-    .run();
+  await db.execute({
+    sql: "UPDATE store_settings SET is_open = ?, updated_at = datetime('now') WHERE id = 1",
+    args: [next],
+  });
   return c.json({ isOpen: !!next });
 });

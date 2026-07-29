@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HonoEnv } from "../types";
 import { requireAdmin } from "../middleware/auth";
+import { getDb } from "../lib/db";
 import { mapCategory } from "../lib/mappers";
 import { slugify } from "../lib/slug";
 
@@ -10,8 +11,9 @@ export const categoryRoutes = new Hono<HonoEnv>();
 categoryRoutes.use("*", requireAdmin);
 
 categoryRoutes.get("/", async (c) => {
-  const rows = await c.env.DB.prepare("SELECT * FROM categories ORDER BY sort_order ASC, name ASC").all();
-  return c.json({ categories: (rows.results as any[]).map(mapCategory) });
+  const db = getDb();
+  const result = await db.execute("SELECT * FROM categories ORDER BY sort_order ASC, name ASC");
+  return c.json({ categories: (result.rows as any[]).map(mapCategory) });
 });
 
 categoryRoutes.post("/", async (c) => {
@@ -20,17 +22,18 @@ categoryRoutes.post("/", async (c) => {
 
   const slug = body.slug ? slugify(body.slug) : slugify(body.name);
   const sortOrder = Number(body.sortOrder ?? 0);
+  const db = getDb();
 
   try {
-    const result = await c.env.DB.prepare(
-      "INSERT INTO categories (name, slug, sort_order, active) VALUES (?, ?, ?, ?)"
-    )
-      .bind(body.name, slug, sortOrder, body.active === false ? 0 : 1)
-      .run();
-    const row = await c.env.DB.prepare("SELECT * FROM categories WHERE id = ?")
-      .bind(result.meta.last_row_id)
-      .first();
-    return c.json({ category: mapCategory(row) }, 201);
+    const insertResult = await db.execute({
+      sql: "INSERT INTO categories (name, slug, sort_order, active) VALUES (?, ?, ?, ?)",
+      args: [body.name, slug, sortOrder, body.active === false ? 0 : 1],
+    });
+    const row = await db.execute({
+      sql: "SELECT * FROM categories WHERE id = ?",
+      args: [Number(insertResult.lastInsertRowid)],
+    });
+    return c.json({ category: mapCategory(row.rows[0]) }, 201);
   } catch (err: any) {
     if (String(err?.message ?? "").includes("UNIQUE")) {
       return c.json({ error: "Já existe uma categoria com esse slug." }, 409);
@@ -44,24 +47,28 @@ categoryRoutes.put("/:id", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body) return c.json({ error: "Payload inválido." }, 400);
 
-  const existing = await c.env.DB.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first();
+  const db = getDb();
+  const existingResult = await db.execute({ sql: "SELECT * FROM categories WHERE id = ?", args: [id] });
+  const existing = existingResult.rows[0] as any;
   if (!existing) return c.json({ error: "Categoria não encontrada." }, 404);
 
-  const name = body.name ?? (existing as any).name;
-  const slug = body.slug ? slugify(body.slug) : (existing as any).slug;
-  const sortOrder = body.sortOrder !== undefined ? Number(body.sortOrder) : (existing as any).sort_order;
-  const active = body.active !== undefined ? (body.active ? 1 : 0) : (existing as any).active;
+  const name = body.name ?? existing.name;
+  const slug = body.slug ? slugify(body.slug) : existing.slug;
+  const sortOrder = body.sortOrder !== undefined ? Number(body.sortOrder) : existing.sort_order;
+  const active = body.active !== undefined ? (body.active ? 1 : 0) : existing.active;
 
-  await c.env.DB.prepare("UPDATE categories SET name = ?, slug = ?, sort_order = ?, active = ? WHERE id = ?")
-    .bind(name, slug, sortOrder, active, id)
-    .run();
+  await db.execute({
+    sql: "UPDATE categories SET name = ?, slug = ?, sort_order = ?, active = ? WHERE id = ?",
+    args: [name, slug, sortOrder, active, id],
+  });
 
-  const row = await c.env.DB.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first();
-  return c.json({ category: mapCategory(row) });
+  const row = await db.execute({ sql: "SELECT * FROM categories WHERE id = ?", args: [id] });
+  return c.json({ category: mapCategory(row.rows[0]) });
 });
 
 categoryRoutes.delete("/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  await c.env.DB.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
+  const db = getDb();
+  await db.execute({ sql: "DELETE FROM categories WHERE id = ?", args: [id] });
   return c.json({ ok: true });
 });

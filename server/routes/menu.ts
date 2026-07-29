@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { HonoEnv } from "../types";
+import { getDb } from "../lib/db";
 import { mapAddonGroup, mapCategory, mapProduct, mapPublicSettings } from "../lib/mappers";
 
 export const menuRoutes = new Hono<HonoEnv>();
@@ -9,37 +10,39 @@ export const menuRoutes = new Hono<HonoEnv>();
 // carregamento inicial em uma única requisição, o que é o que importa para
 // um cardápio pequeno/médio de doceria.
 menuRoutes.get("/menu", async (c) => {
-  const { DB } = c.env;
+  const db = getDb();
 
-  const [settingsRow, categoryRows, productRows] = await Promise.all([
-    DB.prepare("SELECT * FROM store_settings WHERE id = 1").first(),
-    DB.prepare("SELECT * FROM categories WHERE active = 1 ORDER BY sort_order ASC, name ASC").all(),
-    DB.prepare("SELECT * FROM products WHERE active = 1 ORDER BY sort_order ASC, name ASC").all(),
+  const [settingsResult, categoryResult, productResult] = await Promise.all([
+    db.execute("SELECT * FROM store_settings WHERE id = 1"),
+    db.execute("SELECT * FROM categories WHERE active = 1 ORDER BY sort_order ASC, name ASC"),
+    db.execute("SELECT * FROM products WHERE active = 1 ORDER BY sort_order ASC, name ASC"),
   ]);
 
-  const productIds = (productRows.results as any[]).map((p) => p.id);
+  const settingsRow = settingsResult.rows[0];
+  const productRows = productResult.rows as any[];
+  const categoryRows = categoryResult.rows as any[];
+
+  const productIds = productRows.map((p) => p.id);
 
   let groupRows: any[] = [];
   let optionRows: any[] = [];
 
   if (productIds.length > 0) {
     const placeholders = productIds.map(() => "?").join(",");
-    const groups = await DB.prepare(
-      `SELECT * FROM addon_groups WHERE product_id IN (${placeholders}) ORDER BY sort_order ASC, id ASC`
-    )
-      .bind(...productIds)
-      .all();
-    groupRows = groups.results as any[];
+    const groupsResult = await db.execute({
+      sql: `SELECT * FROM addon_groups WHERE product_id IN (${placeholders}) ORDER BY sort_order ASC, id ASC`,
+      args: productIds,
+    });
+    groupRows = groupsResult.rows as any[];
 
     const groupIds = groupRows.map((g) => g.id);
     if (groupIds.length > 0) {
       const gPlaceholders = groupIds.map(() => "?").join(",");
-      const options = await DB.prepare(
-        `SELECT * FROM addon_options WHERE group_id IN (${gPlaceholders}) AND active = 1 ORDER BY sort_order ASC, id ASC`
-      )
-        .bind(...groupIds)
-        .all();
-      optionRows = options.results as any[];
+      const optionsResult = await db.execute({
+        sql: `SELECT * FROM addon_options WHERE group_id IN (${gPlaceholders}) AND active = 1 ORDER BY sort_order ASC, id ASC`,
+        args: groupIds,
+      });
+      optionRows = optionsResult.rows as any[];
     }
   }
 
@@ -58,8 +61,8 @@ menuRoutes.get("/menu", async (c) => {
     groupsByProduct.set(g.product_id, list);
   }
 
-  const products = (productRows.results as any[]).map((p) => mapProduct(p, groupsByProduct.get(p.id) ?? []));
-  const categories = (categoryRows.results as any[]).map(mapCategory);
+  const products = productRows.map((p) => mapProduct(p, groupsByProduct.get(p.id) ?? []));
+  const categories = categoryRows.map(mapCategory);
 
   return c.json({
     settings: settingsRow ? mapPublicSettings(settingsRow) : null,

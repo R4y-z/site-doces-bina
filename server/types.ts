@@ -1,16 +1,8 @@
-// Bindings disponíveis no runtime da Cloudflare (Pages Functions).
-// Configurados em wrangler.toml (DB, IMAGES) e via `wrangler pages secret put`
-// ou dashboard (JWT_SECRET, ADMIN_SETUP_KEY).
-export interface Env {
-  DB: D1Database;
-  IMAGES: R2Bucket;
-  JWT_SECRET: string;
-  ADMIN_SETUP_KEY: string;
-  APP_ENV?: string;
-}
-
+// Na Vercel não existe o conceito de "bindings" injetados por request (como
+// no Cloudflare Workers) — variáveis de ambiente são lidas direto de
+// process.env (ver server/lib/env.ts). O contexto do Hono só carrega
+// estado por requisição mesmo (Variables), como o admin autenticado.
 export type HonoEnv = {
-  Bindings: Env;
   Variables: {
     admin: { id: number; username: string };
   };

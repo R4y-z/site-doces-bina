@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HonoEnv } from "../types";
 import { requireAdmin } from "../middleware/auth";
+import { getDb } from "../lib/db";
 import { mapOrder, mapOrderItem } from "../lib/mappers";
 import { generatePublicCode } from "../lib/slug";
 import { buildWhatsAppMessage, buildWhatsAppUrl } from "../lib/whatsapp";
@@ -27,22 +28,27 @@ interface CreateOrderInput {
   items: CartItemInput[];
 }
 
-async function loadOrderWithItems(DB: D1Database, orderId: number) {
-  const orderRow = await DB.prepare("SELECT * FROM orders WHERE id = ?").bind(orderId).first();
+async function loadOrderWithItems(orderId: number) {
+  const db = getDb();
+  const orderResult = await db.execute({ sql: "SELECT * FROM orders WHERE id = ?", args: [orderId] });
+  const orderRow = orderResult.rows[0];
   if (!orderRow) return null;
 
-  const itemRows = (await DB.prepare("SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC").bind(orderId).all())
-    .results as any[];
+  const itemsResult = await db.execute({
+    sql: "SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC",
+    args: [orderId],
+  });
+  const itemRows = itemsResult.rows as any[];
 
   const itemIds = itemRows.map((i) => i.id);
   let addonRows: any[] = [];
   if (itemIds.length > 0) {
     const placeholders = itemIds.map(() => "?").join(",");
-    addonRows = (
-      await DB.prepare(`SELECT * FROM order_item_addons WHERE order_item_id IN (${placeholders})`)
-        .bind(...itemIds)
-        .all()
-    ).results as any[];
+    const addonsResult = await db.execute({
+      sql: `SELECT * FROM order_item_addons WHERE order_item_id IN (${placeholders})`,
+      args: itemIds,
+    });
+    addonRows = addonsResult.rows as any[];
   }
 
   const addonsByItem = new Map<number, any[]>();
@@ -72,9 +78,10 @@ orderRoutes.post("/", async (c) => {
     return c.json({ error: "Endereço é obrigatório para entrega." }, 400);
   }
 
-  const { DB } = c.env;
+  const db = getDb();
 
-  const settings = await DB.prepare("SELECT * FROM store_settings WHERE id = 1").first<any>();
+  const settingsResult = await db.execute("SELECT * FROM store_settings WHERE id = 1");
+  const settings = settingsResult.rows[0] as any;
   if (!settings) return c.json({ error: "Loja não configurada." }, 500);
   if (!settings.is_open) return c.json({ error: "A loja está fechada no momento." }, 409);
 
@@ -89,9 +96,11 @@ orderRoutes.post("/", async (c) => {
   }[] = [];
 
   for (const item of body.items) {
-    const product = await DB.prepare("SELECT * FROM products WHERE id = ? AND active = 1")
-      .bind(item.productId)
-      .first<any>();
+    const productResult = await db.execute({
+      sql: "SELECT * FROM products WHERE id = ? AND active = 1",
+      args: [item.productId],
+    });
+    const product = productResult.rows[0] as any;
     if (!product) return c.json({ error: `Produto ${item.productId} não encontrado ou indisponível.` }, 400);
 
     const quantity = Math.max(1, Number(item.quantity) || 1);
@@ -100,13 +109,13 @@ orderRoutes.post("/", async (c) => {
     const addons: { name: string; priceCents: number }[] = [];
     const optionIds = item.addonOptionIds ?? [];
     for (const optionId of optionIds) {
-      const option = await DB.prepare(
-        `SELECT ao.* FROM addon_options ao
+      const optionResult = await db.execute({
+        sql: `SELECT ao.* FROM addon_options ao
          JOIN addon_groups ag ON ag.id = ao.group_id
-         WHERE ao.id = ? AND ag.product_id = ? AND ao.active = 1`
-      )
-        .bind(optionId, item.productId)
-        .first<any>();
+         WHERE ao.id = ? AND ag.product_id = ? AND ao.active = 1`,
+        args: [optionId, item.productId],
+      });
+      const option = optionResult.rows[0] as any;
       if (!option) continue;
       addons.push({ name: option.name, priceCents: option.price_cents });
       unitPriceCents += option.price_cents;
@@ -132,17 +141,16 @@ orderRoutes.post("/", async (c) => {
 
   let publicCode = generatePublicCode();
   for (let attempts = 0; attempts < 5; attempts++) {
-    const clash = await DB.prepare("SELECT id FROM orders WHERE public_code = ?").bind(publicCode).first();
-    if (!clash) break;
+    const clashResult = await db.execute({ sql: "SELECT id FROM orders WHERE public_code = ?", args: [publicCode] });
+    if (!clashResult.rows[0]) break;
     publicCode = generatePublicCode();
   }
 
-  const orderResult = await DB.prepare(
-    `INSERT INTO orders (public_code, customer_name, customer_phone, delivery_type, address, neighborhood,
+  const orderResult = await db.execute({
+    sql: `INSERT INTO orders (public_code, customer_name, customer_phone, delivery_type, address, neighborhood,
        reference_point, payment_method, change_for_cents, notes, subtotal_cents, delivery_fee_cents, total_cents, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')`
-  )
-    .bind(
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received')`,
+    args: [
       publicCode,
       body.customerName,
       body.customerPhone,
@@ -155,28 +163,28 @@ orderRoutes.post("/", async (c) => {
       body.notes?.trim() || null,
       subtotalCents,
       deliveryFeeCents,
-      totalCents
-    )
-    .run();
+      totalCents,
+    ],
+  });
 
-  const orderId = orderResult.meta.last_row_id as number;
+  const orderId = Number(orderResult.lastInsertRowid);
 
   for (const item of resolvedItems) {
-    const itemResult = await DB.prepare(
-      "INSERT INTO order_items (order_id, product_id, product_name, unit_price_cents, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)"
-    )
-      .bind(orderId, item.productId, item.productName, item.unitPriceCents, item.quantity, item.notes)
-      .run();
-    const orderItemId = itemResult.meta.last_row_id as number;
+    const itemResult = await db.execute({
+      sql: "INSERT INTO order_items (order_id, product_id, product_name, unit_price_cents, quantity, notes) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [orderId, item.productId, item.productName, item.unitPriceCents, item.quantity, item.notes],
+    });
+    const orderItemId = Number(itemResult.lastInsertRowid);
 
     for (const addon of item.addons) {
-      await DB.prepare("INSERT INTO order_item_addons (order_item_id, addon_name, price_cents) VALUES (?, ?, ?)")
-        .bind(orderItemId, addon.name, addon.priceCents)
-        .run();
+      await db.execute({
+        sql: "INSERT INTO order_item_addons (order_item_id, addon_name, price_cents) VALUES (?, ?, ?)",
+        args: [orderItemId, addon.name, addon.priceCents],
+      });
     }
   }
 
-  const order = await loadOrderWithItems(DB, orderId);
+  const order = await loadOrderWithItems(orderId);
 
   const message = buildWhatsAppMessage({
     order: order!,
@@ -191,18 +199,18 @@ orderRoutes.post("/", async (c) => {
 
 orderRoutes.get("/admin", requireAdmin, async (c) => {
   const status = c.req.query("status");
-  const stmt = status
-    ? c.env.DB.prepare("SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT 200").bind(status)
-    : c.env.DB.prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 200");
+  const db = getDb();
+  const result = status
+    ? await db.execute({ sql: "SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT 200", args: [status] })
+    : await db.execute("SELECT * FROM orders ORDER BY created_at DESC LIMIT 200");
 
-  const rows = (await stmt.all()).results as any[];
-  const orders = rows.map((r) => mapOrder(r));
+  const orders = (result.rows as any[]).map((r) => mapOrder(r));
   return c.json({ orders });
 });
 
 orderRoutes.get("/admin/:id", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
-  const order = await loadOrderWithItems(c.env.DB, id);
+  const order = await loadOrderWithItems(id);
   if (!order) return c.json({ error: "Pedido não encontrado." }, 404);
   return c.json({ order });
 });
@@ -216,11 +224,13 @@ orderRoutes.patch("/admin/:id/status", requireAdmin, async (c) => {
     return c.json({ error: "Status inválido." }, 400);
   }
 
-  await c.env.DB.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?")
-    .bind(body.status, id)
-    .run();
+  const db = getDb();
+  await db.execute({
+    sql: "UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?",
+    args: [body.status, id],
+  });
 
-  const order = await loadOrderWithItems(c.env.DB, id);
+  const order = await loadOrderWithItems(id);
   if (!order) return c.json({ error: "Pedido não encontrado." }, 404);
   return c.json({ order });
 });
