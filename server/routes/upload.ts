@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import type { HonoEnv } from "../types";
-import { requireAdmin } from "../middleware/auth";
-import { getStorage, getBucketName } from "../lib/storage";
+import type { HonoEnv } from "../types.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { getStorage, getBucketName } from "../lib/storage.js";
 
 export const uploadRoutes = new Hono<HonoEnv>();
 

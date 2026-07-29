@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import type { HonoEnv } from "../types";
-import { getDb } from "../lib/db";
-import { mapAddonGroup, mapCategory, mapProduct, mapPublicSettings } from "../lib/mappers";
+import type { HonoEnv } from "../types.js";
+import { getDb } from "../lib/db.js";
+import { mapAddonGroup, mapCategory, mapProduct, mapPublicSettings } from "../lib/mappers.js";
 
 export const menuRoutes = new Hono<HonoEnv>();
 

@@ -1,14 +1,14 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import type { HonoEnv } from "./types";
-import { authRoutes } from "./routes/auth";
-import { menuRoutes } from "./routes/menu";
-import { categoryRoutes } from "./routes/categories";
-import { productRoutes } from "./routes/products";
-import { orderRoutes } from "./routes/orders";
-import { settingsRoutes } from "./routes/settings";
-import { uploadRoutes } from "./routes/upload";
-import { imageRoutes } from "./routes/images";
+import type { HonoEnv } from "./types.js";
+import { authRoutes } from "./routes/auth.js";
+import { menuRoutes } from "./routes/menu.js";
+import { categoryRoutes } from "./routes/categories.js";
+import { productRoutes } from "./routes/products.js";
+import { orderRoutes } from "./routes/orders.js";
+import { settingsRoutes } from "./routes/settings.js";
+import { uploadRoutes } from "./routes/upload.js";
+import { imageRoutes } from "./routes/images.js";
 
 export const app = new Hono<HonoEnv>().basePath("/api");
 

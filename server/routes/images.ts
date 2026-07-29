@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import type { HonoEnv } from "../types";
-import { getStorage, getBucketName } from "../lib/storage";
+import type { HonoEnv } from "../types.js";
+import { getStorage, getBucketName } from "../lib/storage.js";
 
 export const imageRoutes = new Hono<HonoEnv>();
 

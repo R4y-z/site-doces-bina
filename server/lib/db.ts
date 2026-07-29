@@ -1,5 +1,5 @@
 import { createClient, type Client } from "@libsql/client";
-import { getEnv } from "./env";
+import { getEnv } from "./env.js";
 
 // Client singleton — reaproveitado entre invocações da mesma function
 // (Vercel mantém o processo Node "quente" entre requests).

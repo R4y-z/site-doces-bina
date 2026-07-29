@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import type { HonoEnv } from "../types";
-import { requireAdmin } from "../middleware/auth";
-import { getDb } from "../lib/db";
-import { mapCategory } from "../lib/mappers";
-import { slugify } from "../lib/slug";
+import type { HonoEnv } from "../types.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { getDb } from "../lib/db.js";
+import { mapCategory } from "../lib/mappers.js";
+import { slugify } from "../lib/slug.js";
 
 export const categoryRoutes = new Hono<HonoEnv>();
 

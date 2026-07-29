@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import type { HonoEnv } from "../types";
-import { requireAdmin } from "../middleware/auth";
-import { getDb } from "../lib/db";
+import type { HonoEnv } from "../types.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { getDb } from "../lib/db.js";
 
 export const settingsRoutes = new Hono<HonoEnv>();
 

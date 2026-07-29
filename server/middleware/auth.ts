@@ -1,8 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { getCookie } from "hono/cookie";
-import type { HonoEnv } from "../types";
-import { SESSION_COOKIE, verifySession } from "../lib/jwt";
-import { getEnv } from "../lib/env";
+import type { HonoEnv } from "../types.js";
+import { SESSION_COOKIE, verifySession } from "../lib/jwt.js";
+import { getEnv } from "../lib/env.js";
 
 export const requireAdmin = createMiddleware<HonoEnv>(async (c, next) => {
   const token = getCookie(c, SESSION_COOKIE);

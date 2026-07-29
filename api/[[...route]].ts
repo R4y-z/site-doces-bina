@@ -5,6 +5,6 @@
 // não é especificado), necessário pro @libsql/client e pro Buffer usado no
 // upload de imagens.
 import { handle } from "hono/vercel";
-import { app } from "../server/app";
+import { app } from "../server/app.js";
 
 export default handle(app);

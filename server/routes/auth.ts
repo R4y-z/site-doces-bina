@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import type { HonoEnv } from "../types";
-import { getDb } from "../lib/db";
-import { getEnv, isProduction } from "../lib/env";
-import { hashPassword, verifyPassword } from "../lib/password";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "../lib/jwt";
-import { requireAdmin } from "../middleware/auth";
+import type { HonoEnv } from "../types.js";
+import { getDb } from "../lib/db.js";
+import { getEnv, isProduction } from "../lib/env.js";
+import { hashPassword, verifyPassword } from "../lib/password.js";
+import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "../lib/jwt.js";
+import { requireAdmin } from "../middleware/auth.js";
 
 export const authRoutes = new Hono<HonoEnv>();
 

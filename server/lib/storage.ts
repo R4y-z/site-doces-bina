@@ -1,5 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
-import { getEnv } from "./env";
+import { getEnv } from "./env.js";
 
 // R2 expõe um endpoint compatível com S3, então usamos o SDK oficial da AWS
 // apontando pra ele. Client singleton pelo mesmo motivo do db.ts.

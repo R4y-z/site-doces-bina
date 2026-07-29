@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import type { HonoEnv } from "../types";
-import { requireAdmin } from "../middleware/auth";
-import { getDb } from "../lib/db";
-import { mapOrder, mapOrderItem } from "../lib/mappers";
-import { generatePublicCode } from "../lib/slug";
-import { buildWhatsAppMessage, buildWhatsAppUrl } from "../lib/whatsapp";
+import type { HonoEnv } from "../types.js";
+import { requireAdmin } from "../middleware/auth.js";
+import { getDb } from "../lib/db.js";
+import { mapOrder, mapOrderItem } from "../lib/mappers.js";
+import { generatePublicCode } from "../lib/slug.js";
+import { buildWhatsAppMessage, buildWhatsAppUrl } from "../lib/whatsapp.js";
 
 export const orderRoutes = new Hono<HonoEnv>();
 
