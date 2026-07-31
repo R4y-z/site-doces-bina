@@ -32,6 +32,29 @@ export default function AdminProducts() {
 
   const categoryName = (id: number) => categories.find((c) => c.id === id)?.name ?? "—";
 
+  function StockBadge({ stockQuantity }: { stockQuantity: number | null }) {
+    if (stockQuantity === null) return null;
+    if (stockQuantity === 0) {
+      return (
+        <span className="shrink-0 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+          Esgotado
+        </span>
+      );
+    }
+    if (stockQuantity < 5) {
+      return (
+        <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+          Baixo: {stockQuantity}
+        </span>
+      );
+    }
+    return (
+      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+        {stockQuantity} em estoque
+      </span>
+    );
+  }
+
   if (loading) return <p className="text-sm text-ink-500">Carregando...</p>;
 
   return (
@@ -64,6 +87,7 @@ export default function AdminProducts() {
                 {product.featured && " · destaque"}
               </p>
             </div>
+            <StockBadge stockQuantity={product.stockQuantity} />
             <Link
               to={`/admin/produtos/${product.id}`}
               className="rounded-full p-2 text-ink-700 hover:bg-black/5"

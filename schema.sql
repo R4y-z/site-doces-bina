@@ -1,8 +1,8 @@
 -- =============================================================================
--- Schema do banco de dados (Cloudflare D1 / SQLite)
+-- Schema do banco de dados (Turso / libSQL — SQLite)
 -- Rodar com:
---   wrangler d1 execute doceria-db --local  --file=./schema.sql
---   wrangler d1 execute doceria-db --remote --file=./schema.sql
+--   npm run db:migrate:local   (local, via .env.local)
+--   npm run db:migrate:remote  (produção, via .env)
 -- =============================================================================
 
 PRAGMA foreign_keys = ON;
@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS products (
   featured     INTEGER NOT NULL DEFAULT 0,
   active       INTEGER NOT NULL DEFAULT 1,
   sort_order   INTEGER NOT NULL DEFAULT 0,
+  stock_quantity INTEGER CHECK (stock_quantity IS NULL OR stock_quantity >= 0), -- NULL = não controla estoque
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -128,6 +129,7 @@ CREATE TABLE IF NOT EXISTS orders (
   status               TEXT NOT NULL DEFAULT 'received'
                         CHECK (status IN ('received', 'confirmed', 'preparing', 'out_for_delivery', 'ready', 'completed', 'cancelled')),
   whatsapp_sent        INTEGER NOT NULL DEFAULT 0,
+  is_manual_entry      INTEGER NOT NULL DEFAULT 0 CHECK (is_manual_entry IN (0, 1)), -- 1 = lançado pelo admin (telefone/presencial)
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );

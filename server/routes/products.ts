@@ -7,6 +7,13 @@ import { slugify } from "../lib/slug.js";
 
 export const productRoutes = new Hono<HonoEnv>();
 
+// null = não controla estoque. Qualquer valor vazio/negativo/inválido também vira null.
+function normalizeStock(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Math.trunc(Number(value));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
 productRoutes.use("*", requireAdmin);
 
 async function loadAddonGroupsForProduct(productId: number) {
@@ -108,8 +115,8 @@ productRoutes.post("/", async (c) => {
 
   try {
     const insertResult = await db.execute({
-      sql: `INSERT INTO products (category_id, name, slug, description, price_cents, image_url, featured, active, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (category_id, name, slug, description, price_cents, image_url, featured, active, sort_order, stock_quantity)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         Number(body.categoryId),
         body.name,
@@ -120,6 +127,7 @@ productRoutes.post("/", async (c) => {
         body.featured ? 1 : 0,
         body.active === false ? 0 : 1,
         Number(body.sortOrder ?? 0),
+        normalizeStock(body.stockQuantity),
       ],
     });
 
@@ -154,7 +162,7 @@ productRoutes.put("/:id", async (c) => {
 
   await db.execute({
     sql: `UPDATE products SET category_id = ?, name = ?, slug = ?, description = ?, price_cents = ?, image_url = ?,
-       featured = ?, active = ?, sort_order = ?, updated_at = datetime('now') WHERE id = ?`,
+       featured = ?, active = ?, sort_order = ?, stock_quantity = ?, updated_at = datetime('now') WHERE id = ?`,
     args: [
       Number(body.categoryId ?? existing.category_id),
       body.name ?? existing.name,
@@ -165,6 +173,7 @@ productRoutes.put("/:id", async (c) => {
       body.featured !== undefined ? (body.featured ? 1 : 0) : existing.featured,
       body.active !== undefined ? (body.active ? 1 : 0) : existing.active,
       Number(body.sortOrder ?? existing.sort_order),
+      body.stockQuantity !== undefined ? normalizeStock(body.stockQuantity) : existing.stock_quantity,
       id,
     ],
   });

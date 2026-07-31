@@ -6,6 +6,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminProductForm from "./pages/admin/AdminProductForm";
 import AdminOrders from "./pages/admin/AdminOrders";
+import AdminNewOrder from "./pages/admin/AdminNewOrder";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCategories from "./pages/admin/AdminCategories";
 import NotFound from "./pages/NotFound";
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<AdminDashboard />} />
         <Route path="pedidos" element={<AdminOrders />} />
+        <Route path="pedidos/novo" element={<AdminNewOrder />} />
         <Route path="produtos" element={<AdminProducts />} />
         <Route path="produtos/novo" element={<AdminProductForm />} />
         <Route path="produtos/:id" element={<AdminProductForm />} />

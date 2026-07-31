@@ -5,6 +5,10 @@ export function toBool(v: unknown): boolean {
   return v === 1 || v === true || v === "1";
 }
 
+export function toIntOrNull(v: unknown): number | null {
+  return v === null || v === undefined ? null : Number(v);
+}
+
 export function mapCategory(row: any) {
   return {
     id: row.id as number,
@@ -52,6 +56,7 @@ export function mapProduct(row: any, addonGroups: ReturnType<typeof mapAddonGrou
     featured: toBool(row.featured),
     active: toBool(row.active),
     sortOrder: row.sort_order as number,
+    stockQuantity: toIntOrNull(row.stock_quantity),
     addonGroups,
   };
 }
@@ -91,6 +96,7 @@ export function mapOrder(row: any, items: any[] = []) {
     deliveryFeeCents: row.delivery_fee_cents as number,
     totalCents: row.total_cents as number,
     status: row.status as string,
+    isManualEntry: toBool(row.is_manual_entry),
     createdAt: row.created_at as string,
     items,
   };

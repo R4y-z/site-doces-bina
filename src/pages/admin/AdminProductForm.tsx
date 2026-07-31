@@ -42,6 +42,8 @@ export default function AdminProductForm() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [featured, setFeatured] = useState(false);
   const [active, setActive] = useState(true);
+  const [trackStock, setTrackStock] = useState(false);
+  const [stockQuantity, setStockQuantity] = useState("0");
   const [addonGroups, setAddonGroups] = useState<FormAddonGroup[]>([]);
 
   const [loading, setLoading] = useState(isEditing);
@@ -66,6 +68,8 @@ export default function AdminProductForm() {
       setImageUrl(p.imageUrl);
       setFeatured(p.featured);
       setActive(p.active);
+      setTrackStock(p.stockQuantity !== null);
+      setStockQuantity(p.stockQuantity !== null ? String(p.stockQuantity) : "0");
       setAddonGroups(
         p.addonGroups.map((g) => ({
           name: g.name,
@@ -134,6 +138,7 @@ export default function AdminProductForm() {
       imageUrl,
       featured,
       active,
+      stockQuantity: trackStock ? Math.max(0, Math.trunc(Number(stockQuantity) || 0)) : null,
       addonGroups: addonGroups
         .filter((g) => g.name.trim())
         .map((g) => ({
@@ -222,7 +227,7 @@ export default function AdminProductForm() {
           </div>
         </div>
 
-        <div className="flex gap-5">
+        <div className="flex flex-wrap gap-5">
           <label className="flex items-center gap-2 text-sm text-ink-700">
             <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="h-4 w-4 accent-brand-500" />
             Destaque no cardápio
@@ -231,6 +236,34 @@ export default function AdminProductForm() {
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="h-4 w-4 accent-brand-500" />
             Visível para clientes
           </label>
+        </div>
+
+        <div>
+          <label className="mb-1.5 flex items-center gap-2 text-sm text-ink-700">
+            <input
+              type="checkbox"
+              checked={trackStock}
+              onChange={(e) => setTrackStock(e.target.checked)}
+              className="h-4 w-4 accent-brand-500"
+            />
+            Controlar estoque deste produto
+          </label>
+          {trackStock && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={stockQuantity}
+                onChange={(e) => setStockQuantity(e.target.value)}
+                className="w-32 rounded-xl border border-black/10 p-2.5 text-sm outline-none ring-brand-300 focus:ring-2"
+              />
+              <span className="text-xs text-ink-500">unidades disponíveis agora</span>
+            </div>
+          )}
+          {!trackStock && (
+            <p className="text-xs text-ink-500">Sem controle de estoque, o produto nunca fica "esgotado" sozinho.</p>
+          )}
         </div>
       </div>
 

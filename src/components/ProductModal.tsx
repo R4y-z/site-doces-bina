@@ -16,6 +16,9 @@ export default function ProductModal({ product, onClose }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
 
+  const soldOut = product.stockQuantity === 0;
+  const maxQuantity = product.stockQuantity ?? Infinity;
+
   const selectedAddons: CartAddon[] = useMemo(() => {
     const result: CartAddon[] = [];
     for (const group of product.addonGroups) {
@@ -56,7 +59,7 @@ export default function ProductModal({ product, onClose }: Props) {
   }
 
   function handleAdd() {
-    if (missingRequired.length > 0) return;
+    if (missingRequired.length > 0 || soldOut) return;
     addItem({
       productId: product.id,
       name: product.name,
@@ -81,9 +84,18 @@ export default function ProductModal({ product, onClose }: Props) {
       <div className="relative z-10 flex max-h-[92vh] w-full animate-slide-up flex-col overflow-hidden rounded-t-3xl bg-cream-50 shadow-soft sm:max-w-lg sm:rounded-3xl">
         <div className="relative h-48 shrink-0 bg-brand-50 sm:h-56">
           {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className={clsx("h-full w-full object-cover", soldOut && "grayscale opacity-60")}
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-5xl">🍬</div>
+          )}
+          {soldOut && (
+            <span className="absolute left-3 top-3 rounded-full bg-ink-900/80 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+              Esgotado
+            </span>
           )}
           <button
             type="button"
@@ -166,8 +178,9 @@ export default function ProductModal({ product, onClose }: Props) {
             <span className="w-5 text-center font-medium">{quantity}</span>
             <button
               type="button"
-              onClick={() => setQuantity((q) => q + 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-ink-700 hover:bg-black/5"
+              onClick={() => setQuantity((q) => Math.min(maxQuantity, q + 1))}
+              disabled={quantity >= maxQuantity}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-ink-700 hover:bg-black/5 disabled:opacity-30"
               aria-label="Aumentar quantidade"
             >
               <Plus className="h-4 w-4" />
@@ -177,10 +190,10 @@ export default function ProductModal({ product, onClose }: Props) {
           <button
             type="button"
             onClick={handleAdd}
-            disabled={missingRequired.length > 0}
+            disabled={soldOut || missingRequired.length > 0}
             className="flex flex-1 items-center justify-between rounded-full bg-brand-500 px-5 py-3 font-semibold text-white shadow-soft transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span>{missingRequired.length > 0 ? "Selecione as opções" : "Adicionar"}</span>
+            <span>{soldOut ? "Esgotado" : missingRequired.length > 0 ? "Selecione as opções" : "Adicionar"}</span>
             <span>{formatBRL(totalCents)}</span>
           </button>
         </div>

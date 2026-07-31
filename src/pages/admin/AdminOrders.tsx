@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import clsx from "clsx";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/format";
 import { ORDER_STATUS_LABELS, type OrderDTO } from "@/types";
@@ -37,7 +38,15 @@ export default function AdminOrders() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-display text-2xl font-semibold text-ink-900">Pedidos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl font-semibold text-ink-900">Pedidos</h1>
+        <Link
+          to="/admin/pedidos/novo"
+          className="flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2.5 text-sm font-medium text-white shadow-soft"
+        >
+          <Plus className="h-4 w-4" /> Lançar pedido
+        </Link>
+      </div>
 
       <div className="no-scrollbar flex gap-2 overflow-x-auto">
         {STATUS_FILTERS.map((f) => (
@@ -69,8 +78,13 @@ export default function AdminOrders() {
                   onClick={() => setExpandedId(expanded ? null : order.id)}
                 >
                   <div>
-                    <p className="text-sm font-semibold text-ink-900">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-ink-900">
                       #{order.publicCode} · {order.customerName}
+                      {order.isManualEntry && (
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                          Lançado manualmente
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-ink-500">
                       {new Date(order.createdAt).toLocaleString("pt-BR")} · {DELIVERY_LABELS[order.deliveryType]} ·{" "}
@@ -88,9 +102,11 @@ export default function AdminOrders() {
                 {expanded && (
                   <div className="border-t border-black/5 px-4 py-4">
                     <div className="mb-3 space-y-1 text-sm text-ink-700">
-                      <p>
-                        <strong>Telefone:</strong> {order.customerPhone}
-                      </p>
+                      {order.customerPhone && (
+                        <p>
+                          <strong>Telefone:</strong> {order.customerPhone}
+                        </p>
+                      )}
                       {order.deliveryType === "delivery" && (
                         <p>
                           <strong>Endereço:</strong> {order.address}

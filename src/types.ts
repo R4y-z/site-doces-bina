@@ -30,6 +30,7 @@ export interface Product {
   featured: boolean;
   active: boolean;
   sortOrder: number;
+  stockQuantity: number | null;
   addonGroups: AddonGroup[];
 }
 
@@ -109,6 +110,7 @@ export interface OrderDTO {
   deliveryFeeCents: number;
   totalCents: number;
   status: string;
+  isManualEntry: boolean;
   createdAt: string;
   items: OrderItemDTO[];
 }
