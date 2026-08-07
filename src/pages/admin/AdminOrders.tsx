@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import clsx from "clsx";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Printer } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatBRL } from "@/lib/format";
+import { shareReceipt } from "@/lib/receipt";
 import { ORDER_STATUS_LABELS, type OrderDTO } from "@/types";
 
 const STATUS_FILTERS = [
@@ -16,9 +17,12 @@ const PAYMENT_LABELS: Record<string, string> = { pix: "PIX", card: "Cartão", ca
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<OrderDTO[]>([]);
+  const [detailsById, setDetailsById] = useState<Record<number, OrderDTO>>({});
   const [statusFilter, setStatusFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [printingId, setPrintingId] = useState<number | null>(null);
+  const [storeName, setStoreName] = useState("Doces da Bina");
 
   async function load(status: string) {
     setLoading(true);
@@ -31,9 +35,44 @@ export default function AdminOrders() {
     load(statusFilter);
   }, [statusFilter]);
 
+  useEffect(() => {
+    api.get<{ settings: { storeName: string } }>("/admin/settings").then((res) => setStoreName(res.settings.storeName));
+  }, []);
+
+  // A listagem (GET /orders/admin) não traz os itens de cada pedido, só o
+  // GET /orders/admin/:id traz. Busca sob demanda e guarda em cache local.
+  async function ensureDetails(order: OrderDTO): Promise<OrderDTO> {
+    const cached = detailsById[order.id];
+    if (cached) return cached;
+    const res = await api.get<{ order: OrderDTO }>(`/orders/admin/${order.id}`);
+    setDetailsById((prev) => ({ ...prev, [order.id]: res.order }));
+    return res.order;
+  }
+
+  function toggleExpand(order: OrderDTO) {
+    if (expandedId === order.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(order.id);
+    ensureDetails(order);
+  }
+
+  async function handlePrint(order: OrderDTO) {
+    setPrintingId(order.id);
+    try {
+      const full = await ensureDetails(order);
+      const result = await shareReceipt(full, storeName);
+      if (result.message) alert(result.message);
+    } finally {
+      setPrintingId(null);
+    }
+  }
+
   async function updateStatus(id: number, status: string) {
     const res = await api.patch<{ order: OrderDTO }>(`/orders/admin/${id}/status`, { status });
-    setOrders((prev) => prev.map((o) => (o.id === id ? res.order : o)));
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: res.order.status } : o)));
+    setDetailsById((prev) => (prev[id] ? { ...prev, [id]: res.order } : prev));
   }
 
   return (
@@ -71,11 +110,21 @@ export default function AdminOrders() {
         <div className="space-y-2.5">
           {orders.map((order) => {
             const expanded = expandedId === order.id;
+            const full = detailsById[order.id];
+            const printing = printingId === order.id;
             return (
               <div key={order.id} className="overflow-hidden rounded-2xl bg-white shadow-card">
-                <button
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
-                  onClick={() => setExpandedId(expanded ? null : order.id)}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleExpand(order)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleExpand(order);
+                    }
+                  }}
+                  className="flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3.5 text-left"
                 >
                   <div>
                     <p className="flex items-center gap-2 text-sm font-semibold text-ink-900">
@@ -91,13 +140,24 @@ export default function AdminOrders() {
                       {PAYMENT_LABELS[order.paymentMethod]}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="font-display text-sm font-semibold text-brand-600">
                       {formatBRL(order.totalCents)}
                     </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrint(order);
+                      }}
+                      aria-label="Imprimir pedido"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-ink-700 hover:bg-black/5"
+                    >
+                      <Printer className={clsx("h-4 w-4", printing && "animate-pulse")} />
+                    </button>
                     <ChevronDown className={clsx("h-4 w-4 text-ink-500 transition-transform", expanded && "rotate-180")} />
                   </div>
-                </button>
+                </div>
 
                 {expanded && (
                   <div className="border-t border-black/5 px-4 py-4">
@@ -127,22 +187,26 @@ export default function AdminOrders() {
                     </div>
 
                     <div className="space-y-2 border-t border-black/5 pt-3">
-                      {order.items.map((item) => (
-                        <div key={item.id} className="text-sm">
-                          <p className="font-medium text-ink-900">
-                            {item.quantity}x {item.productName} — {formatBRL(item.unitPriceCents * item.quantity)}
-                          </p>
-                          {item.addons.map((a) => (
-                            <p key={a.name} className="ml-4 text-xs text-ink-500">
-                              + {a.name}
+                      {!full ? (
+                        <p className="text-sm text-ink-500">Carregando itens...</p>
+                      ) : (
+                        full.items.map((item) => (
+                          <div key={item.id} className="text-sm">
+                            <p className="font-medium text-ink-900">
+                              {item.quantity}x {item.productName} — {formatBRL(item.unitPriceCents * item.quantity)}
                             </p>
-                          ))}
-                          {item.notes && <p className="ml-4 text-xs italic text-ink-500">obs: {item.notes}</p>}
-                        </div>
-                      ))}
+                            {item.addons.map((a) => (
+                              <p key={a.name} className="ml-4 text-xs text-ink-500">
+                                + {a.name}
+                              </p>
+                            ))}
+                            {item.notes && <p className="ml-4 text-xs italic text-ink-500">obs: {item.notes}</p>}
+                          </div>
+                        ))
+                      )}
                     </div>
 
-                    <div className="mt-4 flex items-center gap-2 border-t border-black/5 pt-3">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-black/5 pt-3">
                       <label className="text-xs font-medium text-ink-500">Status:</label>
                       <select
                         value={order.status}
@@ -155,6 +219,16 @@ export default function AdminOrders() {
                           </option>
                         ))}
                       </select>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePrint(order)}
+                        disabled={printing}
+                        className="ml-auto flex items-center gap-1.5 rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-medium text-ink-700 hover:bg-black/5 disabled:opacity-50"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        {printing ? "Abrindo..." : "Imprimir"}
+                      </button>
                     </div>
                   </div>
                 )}

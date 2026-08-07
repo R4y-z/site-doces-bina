@@ -121,3 +121,39 @@ export function buildReceiptText(order: OrderDTO, storeName: string, width: numb
 
   return lines.join("\n");
 }
+
+export interface ShareReceiptResult {
+  ok: boolean;
+  message?: string;
+}
+
+// Manda o cupom formatado pro menu nativo de compartilhar do iOS (Share
+// Sheet). Não existe URL scheme documentado pro Bluetooth Thermal Printer
+// App / Thermer, então essa é a via suportada: o admin toca em "Imprimir",
+// escolhe o app da impressora na lista do iOS, e imprime de lá.
+export async function shareReceipt(order: OrderDTO, storeName: string): Promise<ShareReceiptResult> {
+  const text = buildReceiptText(order, storeName);
+
+  if (typeof navigator !== "undefined" && navigator.share) {
+    try {
+      await navigator.share({ title: `Pedido #${order.publicCode}`, text });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        // Admin cancelou o menu de compartilhar — não é erro.
+        return { ok: true };
+      }
+      // Segue pro fallback de clipboard abaixo.
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    return {
+      ok: true,
+      message: "Não foi possível abrir o menu de compartilhar — o texto do cupom foi copiado, cole no app da impressora.",
+    };
+  } catch {
+    return { ok: false, message: "Não foi possível compartilhar nem copiar o cupom." };
+  }
+}
